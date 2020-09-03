@@ -1,0 +1,7 @@
+{
+  "filesource": "文件",
+  "datasource": "SQL",
+  "model": "模型",
+  "logic": "逻辑",
+  "program": "处理"
+}

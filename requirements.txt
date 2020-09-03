@@ -1,0 +1,24 @@
+connexion == 2.6.0
+setuptools >= 21.0.0
+sqlalchemy~=1.3.13
+
+jsonschema~=3.2.0
+Werkzeug~=1.0.1
+requests~=2.18.4
+PyYAML~=5.3.1
+six~=1.11.0
+aioify
+Flask~=1.1.2
+Jinja2
+Flask-RESTful
+flask_testing
+connection-pool
+connexion[swagger-ui]
+connexion== 2.6.0
+python_dateutil== 2.8.1
+pymysql
+pycrypto
+kubernetes
+configparser~=5.0.0
+prometheus_client
+sqlalchemy_utils

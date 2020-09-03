@@ -1,0 +1,23 @@
+ui:
+  module:
+    options:
+    - modelDev
+    - modelHub
+    value: modelDev
+  storage_class:
+    options:
+    - class: file
+      model: RWX
+    - class: rbd
+      model: RWX
+    value:
+      class: file
+      model: RWX
+# k8s config
+namespace:
+- eap-ou
+# rms config
+keytab:
+  - hadoop-client-pvc
+  - hadoop-ou-keytab-pvc
+frequency_second: 10

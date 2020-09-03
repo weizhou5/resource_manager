@@ -1,0 +1,90 @@
+image: ${DOCKER_REPO_URL}/builder/python3-builder
+
+variables:
+  git_submodule_strategy: recursive
+
+before_script:
+  - export PROJECT_NAME="eap-storageresource-manager"
+  - export IMAGE_TAG="${CI_COMMIT_REF_NAME////-}-${CI_COMMIT_SHA:0:8}"
+  - export PRECOMMIT_IMAGE="${DOCKER_REPO_URL}/precommit/${PROJECT_NAME}"
+  - export POSTCOMMIT_IMAGE="${DOCKER_REPO_URL}/postcommit/${PROJECT_NAME}"
+  - docker login -u ${REGISTRY_USER_NAME} -p ${REGISTRY_USER_TOKEN} ${DOCKER_REPO_URL}
+  - pip3 install --no-cache-dir -r requirements.txt
+stages:
+  - precommit
+  - postcommit
+  - deploy
+  - release
+
+precommit:
+  stage: precommit
+  script:
+    - set -e
+    - docker build -t ${PRECOMMIT_IMAGE}:${IMAGE_TAG} --build-arg docker_repo_url=${DOCKER_REPO_URL} .
+    - echo "run UT test"
+    - bash run_unit_tests.sh
+    - echo ${PRECOMMIT_IMAGE}:${IMAGE_TAG}
+    - docker push  ${PRECOMMIT_IMAGE}:${IMAGE_TAG}
+  tags:
+    - alpha
+
+
+postcommit:
+  stage: postcommit
+  script:
+    - set -e
+    - echo "update yapi"
+    - python3 update_yapi.py
+    - docker pull  ${PRECOMMIT_IMAGE}:${IMAGE_TAG}
+    - bash run_unit_tests.sh
+    - bash run_integration_tests.sh
+    - echo "run UT test"
+    - bash run_unit_tests.sh
+    - sonar-scanner -Dsonar.language=py -Dsonar.python.coverage.reportPath=*coverage*.xml -Dsonar.projectKey=${PROJECT_NAME}    -Dsonar.sources=rms -Dsonar.exclusions=**/client/** -Dsonar.host.url=${SONAR_URL_HOST} -Dsonar.login=de67654a6c4b9976639d23ecdb70306cb8315ee5
+    - docker tag  ${PRECOMMIT_IMAGE}:${IMAGE_TAG}  ${POSTCOMMIT_IMAGE}:${IMAGE_TAG}
+    - echo ${POSTCOMMIT_IMAGE}:${IMAGE_TAG}
+    - docker push  ${POSTCOMMIT_IMAGE}:${IMAGE_TAG}
+  only:
+    - master
+    - /^release-\d\.\d$/
+  tags:
+    - alpha
+
+alpha-deploy:
+  stage: deploy
+  script:
+    - set -e
+    - echo "upgrade development environment by kubectl or helm"
+    - kubectl set image deployment/${PROJECT_NAME}  ${PROJECT_NAME}=${POSTCOMMIT_IMAGE}:${IMAGE_TAG} --namespace=eap-dev
+  only:
+    - master
+    - /^release-\d\.\d$/
+  tags:
+    - alpha
+
+aks-deploy:
+  stage: deploy
+  script:
+    - set -e
+    - kubectl config use-context aks-mi1
+    - export NAMESPACE=eap-${CI_COMMIT_REF_NAME/./-}
+    - echo "upgrade development environment by kubectl or helm"
+    - kubectl get ns ${NAMESPACE} && kubectl set image deployment/${PROJECT_NAME}  ${PROJECT_NAME}=${POSTCOMMIT_IMAGE}:${IMAGE_TAG} -n  ${NAMESPACE}
+  only:
+    - master
+    - /^release-\d\.\d$/
+  tags:
+    - alpha
+
+release:
+  stage: release
+  script:
+    - set -e
+    - echo "update image config for branch ${CI_COMMIT_REF_NAME}"
+    - bash /usr/local/bin/sync_images.sh  --branch ${CI_COMMIT_REF_NAME} --category development --project  ${PROJECT_NAME} --source_image_url ${POSTCOMMIT_IMAGE} --architecture x86 --source_image_tag ${IMAGE_TAG} --release_image_tag ${IMAGE_TAG}
+  only:
+    - master
+    - /^release-\d\.\d$/
+  tags:
+    - alpha
+
